@@ -1,0 +1,87 @@
+name: Build OrangeFox Recovery Arabic Full
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+          sudo apt-get clean
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential curl flex git \
+            gperf libssl-dev libncurses5-dev \
+            unzip zip zlib1g-dev openjdk-8-jdk python3
+
+      - name: Repo tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod +x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: GitHub auth
+        run: |
+          git config --global url."https://${{ github.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Sync source
+        run: |
+          mkdir ~/orangefox
+          cd ~/orangefox
+          repo init -u https://github.com/OrangeFoxRecovery/Manifest.git -b fox_9.0
+          repo sync -c -j$(nproc) --force-sync --no-clone-bundle --no-tags
+
+      - name: Device tree
+        run: |
+          cd ~/orangefox
+          git clone https://github.com/OrangeFoxRecovery/device_samsung_gtexslte device/samsung/gtexslte
+
+      - name: Add language
+        run: |
+          cd ~/orangefox
+          LANG=bootable/recovery/gui/theme/common/languages
+          mkdir -p $LANG
+          cat << 'EOF' > $LANG/ar.xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="language_name">العربية</string>
+  <string name="yes">نعم</string>
+  <string name="no">لا</string>
+  <string name="ok">موافق</string>
+  <string name="cancel">إلغاء</string>
+  <string name="back">رجوع</string>
+  <string name="next">التالي</string>
+  <string name="install">تثبيت</string>
+  <string name="wipe">مسح</string>
+  <string name="reboot">إعادة التشغيل</string>
+  <string name="mount">تركيب</string>
+  <string name="settings">الإعدادات</string>
+  <string name="advanced">خيارات متقدمة</string>
+  <string name="file_manager">مدير الملفات</string>
+  <string name="terminal">الطرفية</string>
+</resources>
+EOF
+
+      - name: Build
+        run: |
+          cd ~/orangefox
+          export ALLOW_MISSING_DEPENDENCIES=true
+          source build/envsetup.sh
+          lunch omni_gtexslte-eng
+          mka recoveryimage
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrangeFox-Recovery
+          path: ~/orangefox/out/target/product/gtexslte/recovery.img
