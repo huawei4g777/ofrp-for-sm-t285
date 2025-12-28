@@ -1,4 +1,4 @@
-name: Build OrangeFox Recovery Arabic Full
+name: Build OrangeFox Recovery Arabic Full 2
 
 on:
   workflow_dispatch:
